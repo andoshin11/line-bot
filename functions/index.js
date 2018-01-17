@@ -1,6 +1,7 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin')
 const line = require('@line/bot-sdk')
+const moment = require('moment')
 
 admin.initializeApp(functions.config().firebase)
 const db = admin.firestore()
@@ -21,6 +22,7 @@ const replyText = (token, texts) => {
 
 const handleEvent = event => {
   console.log(event)
+  console.log(`handleEvent called at: ${moment().format()}`)
 
   switch (event.type) {
     case 'message':
@@ -32,7 +34,6 @@ const handleEvent = event => {
           throw new Error(`Unknown message: ${JSON.stringify(message)}`)
       }
     case 'follow':
-//      return replyText(event.replyToken, 'フォローありがとうございます！')
       return handleFollow(event.replyToken, event.source)
     case 'join':
       return replyText(event.replyToken, `${event.source.type}に参加しました`)
@@ -77,26 +78,29 @@ const handleText = (message, replyToken, source) => {
 
 // handle actions
 const handleAction = (action, replyToken, source) => {
-  console.log('handleAction called')
+  console.log(`handleAction called at: ${moment().format()}`)
   console.log(action)
   switch (action) {
     case 'show':
       if (!source.userId) return replyText(replyToken, `ユーザーIDが取得できませんでした。友達登録をしてください。`)
 
       // find dates user assigned
-      db.collection('users').doc(source.userId).get()
-        .then(doc => db.collection('calendar').where('userId', '==', doc.id).get()
-          .then(snapshot => {
-            const dates = []
-            snapshot.forEach(doc => dates.push(doc.id))
-            console.log('retrived dates')
-            dates.map(date => console.log(date))
-            return replyText(replyToken, `【当番日程】\n${dates}\n\n頑張りましょう！`)
+      return db.collection('calendar').where('userId', '==', source.userId).get()
+        .then(snapshot => {
+          console.log(`calendar dates retrived at: ${moment().format()}`)
+          const dates = []
+          snapshot.forEach(doc => {
+            if(moment(doc.id).isAfter(moment().subtract(1, 'days'))) dates.push(moment(doc.id).format('M月D日'))
           })
-        )
-
-      break
-
+          console.log('retrived dates')
+          dates.map(date => console.log(date))
+          let message = '【当番日程】\n'
+          dates.forEach(date => {
+            message += `・ ${date}\n`
+          })
+          message += '\n頑張りましょう！'
+          return replyText(replyToken, message)
+        })
     default:
         return replyText(replyToken, `登録されていないアクションです: ${action}`)
   }
@@ -119,6 +123,7 @@ const handleFollow = (replyToken, source) => {
 }
 
 exports.handler = functions.https.onRequest((req, res) => {
+  console.log(`onRequest called at: ${moment().format()}`)
   // events must be an array
   if (!Array.isArray(req.body.events)) {
     return res.status(500).end()
@@ -127,6 +132,9 @@ exports.handler = functions.https.onRequest((req, res) => {
   // handle events
   Promise
     .all(req.body.events.map(handleEvent))
-    .then(result => res.status(200).send(`Success: ${result}`))
+    .then(result => {
+      console.log(`Promise.all resolved at: ${moment().format()}`)
+      res.status(200).send(`Success: ${result}`)
+    })
     .catch(err => res.status(400).send(err.toString()))
 })
