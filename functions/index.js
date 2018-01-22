@@ -46,7 +46,7 @@ const handleEvent = event => {
       // handle postback
       if (data.match(/^action=([a-z]+)/)) {
         const action = data.match(/^action=([a-z]+)/)[1]
-        return handleAction(action, event.replyToken, event.source)
+        return handleAction(action, event.replyToken, event.source, event.postback)
       } else {
         return replyText(event.replyToken, `Got postback: ${data}`)
       }
@@ -77,7 +77,7 @@ const handleText = (message, replyToken, source) => {
 }
 
 // handle actions
-const handleAction = (action, replyToken, source) => {
+const handleAction = (action, replyToken, source, postback) => {
   console.log(`handleAction called at: ${moment().format()}`)
   console.log(action)
   switch (action) {
@@ -100,6 +100,45 @@ const handleAction = (action, replyToken, source) => {
           })
           message += '\n頑張りましょう！'
           return replyText(replyToken, message)
+        })
+    case 'ask':
+      return client.replyMessage(
+        replyToken,
+        {
+          type: 'template',
+          altText: '当番変更依頼',
+          template: {
+            type: 'buttons',
+            text: '当番変更を依頼したい日付を選択してください',
+            title: '日付を選択',
+            thumbnailImageUrl: 'https://gyazo.com/770ec6a2732d77c457678d0bc87b4e98.png',
+            actions: [
+              {
+                label: 'select date',
+                type: 'datetimepicker',
+                data: 'action=select',
+                mode: 'date',
+              }
+            ]
+          }
+        }
+      )
+    case 'select':
+      const userId = source.userId
+      const date = moment(postback.params.date).format('YYYYMMDD')
+      console.log('select called')
+      console.log(date)
+
+      // validate date asignee
+      return db.collection('calendar').doc(date).get()
+        .then(doc => {
+          console.log('doc retrived')
+          console.log(doc.data().userId)
+          if (doc.data().userId != userId) return replyText(replyToken, 'あなたの担当日ではありません！')
+
+          return db.collection('requests').doc(date).set({
+            asker: userId
+          }).then(() => replyText(replyToken, `${postback.params.date}の担当変更依頼が作成されました`))
         })
     default:
         return replyText(replyToken, `登録されていないアクションです: ${action}`)
@@ -138,3 +177,26 @@ exports.handler = functions.https.onRequest((req, res) => {
     })
     .catch(err => res.status(400).send(err.toString()))
 })
+
+// when request is created
+exports.createRequest = functions.firestore
+  .document('requests/{request}')
+  .onCreate(event => {
+    console.log('new request created')
+    const newRequest = event.data.data()
+    const asker = newRequest.asker
+
+    console.log('asker')
+    console.log(asker)
+
+    return db.collection('users').get()
+      .then(snapshot => {
+        let users = []
+        snapshot.forEach(doc => {
+          users.push(doc.id)
+        })
+        console.log('users')
+        console.log(users)
+        return client.multicast(users, [{type: 'text', text: '新しいリクエストが作成されました'}])
+      })
+  })
