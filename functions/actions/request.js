@@ -15,7 +15,7 @@ module.exports = (replyToken, source, postback) => {
       if(doc.data().userId != userId) return replyText(replyToken, 'あなたの担当日ではありません！')
 
       return db.collection('requests').doc(date).set({ asker: userId })
-        .then(() => replyText(replyToken, `${date}の担当変更依頼が作成されました`))
+        .then(() => replyText(replyToken, `${moment(date).format('M月D日')}の当番変更依頼が作成されました！`))
     })
 }
 
