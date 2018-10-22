@@ -19,6 +19,12 @@ module.exports = replyToken => {
       ]
     }
   }
+  // return client.unlinkRichMenuFromUser('U84b137ce65ec3ed22806a312e27fb396', 'richmenu-b5bad355416adf77f015940bae6cbfea')
+  return client.getRichMenuIdOfUser('U84b137ce65ec3ed22806a312e27fb396').then(response => {
+    console.log('rich menu list')
+    console.log(response)
+    return client.replyMessage(replyToken, message)
+  })
 
   return client.replyMessage(replyToken, message)
 }

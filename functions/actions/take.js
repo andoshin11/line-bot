@@ -15,7 +15,10 @@ module.exports = (replyToken, source, postback) => {
         return replyText(replyToken, 'すでに担当者がいます！')
       } else {
         return db.collection('requests').doc(date).update({ taker: userId })
-          .then(() => replyText(replyToken, `${moment(date).format('M月D日')}の担当があなたに変更されました`))
+          .then(() => {
+            return db.collection('calendar').doc(date).update({ userId: userId })
+              .then(() => replyText(replyToken, `${moment(date).format('M月D日')}の担当があなたに変更されました`))
+          })
       }
     })
 }
